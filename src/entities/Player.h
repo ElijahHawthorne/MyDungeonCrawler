@@ -6,6 +6,9 @@ struct Player {
     float y;
     float speed;
     float size;
+    int health;
+    int maxHealth;
+    int attackPower;
 };
 
 void UpdatePlayer(Player& player);

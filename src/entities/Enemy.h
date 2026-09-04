@@ -6,9 +6,13 @@ struct Enemy {
     float y;
     float speed;
     float size;
-    float dirX;       // current movement direction: -1, 0, or 1
+    float dirX;
     float dirY;
-    float changeTimer; // seconds until picking a new random direction
+    float changeTimer;
+    int health;
+    int maxHealth;
+    int attackPower;
+    bool alive;
 };
 
 void UpdateEnemy(Enemy& enemy);

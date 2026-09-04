@@ -13,6 +13,7 @@ set(SOURCES
     src/Map.cpp
     src/entities/Player.cpp
     src/entities/Enemy.cpp
+    src/combat/Combat.cpp
 )
 
 add_executable(DungeonCrawler ${SOURCES})
