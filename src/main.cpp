@@ -10,8 +10,12 @@ int main() {
     Texture2D tileset = LoadTexture("assets/tilesets/tilemap.png");
     LoadMapFromFile("assets/maps/field.json");
 
-    Player player = { 100.0f, 100.0f, 200.0f, (float)(TILE_SIZE * DRAW_SCALE / 2) };
+    int tileScreenSize = TILE_SIZE * DRAW_SCALE;
+    float startX = (float)(playerStartCol * tileScreenSize);
+    float startY = (float)(playerStartRow * tileScreenSize);
 
+    Player player = { startX, startY, 200.0f, (float)(TILE_SIZE * DRAW_SCALE / 2) };
+    
     while (!WindowShouldClose()) {
         UpdatePlayer(player);
 

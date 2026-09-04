@@ -9,7 +9,10 @@ using json = nlohmann::json;
 
 int map[MAP_ROWS][MAP_COLS] = {};
 
-const std::unordered_set<int> BLOCKED_TILES = { TREE };
+const std::unordered_set<int> BLOCKED_TILES = { TREE, GRASS };
+
+int playerStartRow = 0;
+int playerStartCol = 0;
 
 
 void LoadMapFromFile(const std::string& path) {
@@ -26,6 +29,8 @@ void LoadMapFromFile(const std::string& path) {
             map[row][col] = data["tiles"][row][col];
         }
     }
+    playerStartRow = data["player_start"]["row"];
+    playerStartCol = data["player_start"]["col"];
 }
 
 void DrawMap(Texture2D tileset) {

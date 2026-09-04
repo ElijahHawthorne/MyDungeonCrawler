@@ -8,6 +8,9 @@ const int MAP_ROWS = 10;
 
 extern int map[MAP_ROWS][MAP_COLS];
 extern const std::unordered_set<int> BLOCKED_TILES;
+extern int playerStartRow;
+extern int playerStartCol;
+
 
 void DrawMap(Texture2D tileset);
 bool IsWalkable(int row, int col);
