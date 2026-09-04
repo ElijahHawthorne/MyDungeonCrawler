@@ -11,10 +11,13 @@ set(SOURCES
     src/main.cpp
     src/Tile.cpp
     src/Map.cpp
-    src/Player.cpp
+    src/entities/Player.cpp
+    src/entities/Enemy.cpp
 )
 
 add_executable(DungeonCrawler ${SOURCES})
+
+target_include_directories(DungeonCrawler PRIVATE src)
 
 add_custom_command(TARGET DungeonCrawler POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -23,7 +26,6 @@ add_custom_command(TARGET DungeonCrawler POST_BUILD
 )
 
 target_link_libraries(DungeonCrawler raylib nlohmann_json::nlohmann_json)
-
 if(APPLE)
     target_link_libraries(DungeonCrawler "-framework OpenGL" "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
 endif()
