@@ -5,6 +5,7 @@
 #include "entities/Enemy.h"
 #include "GameState.h"
 #include "combat/Combat.h"
+#include "combat/Ability.h"
 #include <vector>
 
 int main() {
@@ -14,6 +15,9 @@ int main() {
 
     Texture2D tileset = LoadTexture("assets/tilesets/tilemap.png");
     LoadMapFromFile("assets/maps/field.json");
+
+    AbilityDatabase abilities;
+    abilities.LoadFromFile("assets/data/abilities.json");
 
     Music exploreMusic = LoadMusicStream("assets/music/exploring.mp3");
     Music combatMusic  = LoadMusicStream("assets/music/combat.mp3");
@@ -27,7 +31,8 @@ int main() {
     float startX = (float)(playerStartCol * tileScreenSize);
     float startY = (float)(playerStartRow * tileScreenSize);
 
-    Player player = { startX, startY, 200.0f, (float)(TILE_SIZE * DRAW_SCALE / 2), 30, 30, 15 };
+    Player player = { startX, startY, 200.0f, (float)(TILE_SIZE * DRAW_SCALE / 2), 30, 30, 5, 5, 15, {} };
+    player.loadout = BuildLoadout(abilities, { "slash", "fireball", "mend" });
 
     std::vector<Enemy> mapEnemies = {
         { (float)(10 * tileScreenSize), (float)(7 * tileScreenSize), 80.0f, (float)(TILE_SIZE * DRAW_SCALE / 2), 0, 0, 0, 20, 20, 3, true },
@@ -41,7 +46,7 @@ int main() {
     GameState previousState = EXPLORING;
     std::vector<Enemy*> activeCombatEnemies;
 
-    const float MUSIC_FADE_DURATION = 0.5f;
+    const float MUSIC_FADE_DURATION = 1.0f;
     bool fadingOutCombat = false;
     float fadeTimer = 0.0f;
     bool waitingToStartCombat = false;

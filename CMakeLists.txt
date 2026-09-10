@@ -14,6 +14,7 @@ set(SOURCES
     src/entities/Player.cpp
     src/entities/Enemy.cpp
     src/combat/Combat.cpp
+    src/combat/Ability.cpp
 )
 
 add_executable(DungeonCrawler ${SOURCES})

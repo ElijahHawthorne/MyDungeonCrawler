@@ -1,5 +1,6 @@
 #pragma once
 #include "raylib.h"
+#include "combat/Ability.h"
 
 struct Player {
     float x;
@@ -8,7 +9,10 @@ struct Player {
     float size;
     int health;
     int maxHealth;
-    int attackPower;
+    int energy;       // resource spent on abilities; regens 1 per combat round
+    int maxEnergy;
+    int attackPower;  // fallback melee power (used by enemies' turn logic pattern)
+    Loadout loadout;  // abilities carried into combat
 };
 
 void UpdatePlayer(Player& player);

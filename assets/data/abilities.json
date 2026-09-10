@@ -1,0 +1,37 @@
+{
+    "abilities": [
+        {
+            "id": "slash",
+            "name": "Slash",
+            "description": "A basic melee strike.",
+            "target": "enemy",
+            "cost": 0,
+            "cooldown": 0,
+            "effects": [
+                { "type": "damage", "amount": 15 }
+            ]
+        },
+        {
+            "id": "fireball",
+            "name": "Fireball",
+            "description": "Burns every enemy.",
+            "target": "all_enemies",
+            "cost": 3,
+            "cooldown": 2,
+            "effects": [
+                { "type": "damage", "amount": 10 }
+            ]
+        },
+        {
+            "id": "mend",
+            "name": "Mend",
+            "description": "Restore your own health.",
+            "target": "self",
+            "cost": 2,
+            "cooldown": 3,
+            "effects": [
+                { "type": "heal", "amount": 20 }
+            ]
+        }
+    ]
+}
