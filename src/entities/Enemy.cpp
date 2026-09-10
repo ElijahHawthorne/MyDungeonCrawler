@@ -2,6 +2,23 @@
 #include "Map.h"
 #include "Tile.h"
 
+// Every frame in the spritesheet is this many pixels square, laid out in a
+// single vertical strip (frames stacked top to bottom) with no gaps.
+static const int ENEMY_FRAME = 16;
+
+// The one place spritesheet frame numbers live. Indexed by EnemyAnim.
+// Frame ranges (0-based) for the current 15-frame sheet:
+//   IDLE        frame 0
+//   ATTACK      frames 1-4
+//   HURT_SLASH  frames 6-9
+//   HURT_FIRE   frames 11-14
+static const AnimClip ENEMY_CLIPS[EANIM_COUNT] = {
+    /* EANIM_IDLE       */ { 0,  1, 1.0f,  true  },
+    /* EANIM_ATTACK     */ { 1,  4, 12.0f, false },
+    /* EANIM_HURT_SLASH */ { 6,  4, 12.0f, false },
+    /* EANIM_HURT_FIRE  */ { 11, 4, 12.0f, false },
+};
+
 void PickNewDirection(Enemy& enemy) {
     // 0=up, 1=down, 2=left, 3=right, 4=stand still
     int choice = GetRandomValue(0, 4);
@@ -45,6 +62,61 @@ void UpdateEnemy(Enemy& enemy) {
     }
 }
 
-void DrawEnemy(const Enemy& enemy) {
-    DrawRectangle((int)enemy.x, (int)enemy.y, (int)enemy.size, (int)enemy.size, PURPLE);
+void SetEnemyAnim(Enemy& enemy, EnemyAnim anim) {
+    enemy.anim = anim;
+    enemy.animFrame = 0;
+    enemy.animTimer = 0.0f;
+}
+
+void UpdateEnemyAnim(Enemy& enemy, float dt) {
+    const AnimClip& clip = ENEMY_CLIPS[enemy.anim];
+    if (clip.count <= 1) {
+        enemy.animFrame = 0;
+        return;
+    }
+
+    enemy.animTimer += dt;
+    float frameTime = 1.0f / clip.fps;
+
+    while (enemy.animTimer >= frameTime) {
+        enemy.animTimer -= frameTime;
+        enemy.animFrame++;
+
+        if (enemy.animFrame >= clip.count) {
+            if (clip.loop) {
+                enemy.animFrame = 0;
+            } else {
+                SetEnemyAnim(enemy, EANIM_IDLE);
+                return;
+            }
+        }
+    }
+}
+
+float EnemyAnimDuration(EnemyAnim anim) {
+    const AnimClip& clip = ENEMY_CLIPS[anim];
+    return clip.count / clip.fps;
+}
+
+Rectangle EnemyFrameRect(const Enemy& enemy) {
+    const AnimClip& clip = ENEMY_CLIPS[enemy.anim];
+    int frame = clip.start + enemy.animFrame;
+    return { 0.0f, (float)(frame * ENEMY_FRAME), (float)ENEMY_FRAME, (float)ENEMY_FRAME };
+}
+
+void DrawEnemy(const Enemy& enemy, Texture2D sheet) {
+    if (sheet.id == 0) {
+        DrawRectangle((int)enemy.x, (int)enemy.y, (int)enemy.size, (int)enemy.size, PURPLE);
+        return;
+    }
+
+    float drawSize = (float)(ENEMY_FRAME * DRAW_SCALE);
+    Rectangle src = EnemyFrameRect(enemy);
+    Rectangle dest = {
+        enemy.x + enemy.size / 2.0f - drawSize / 2.0f, // centered on the hitbox
+        enemy.y + enemy.size - drawSize,               // feet on the hitbox bottom
+        drawSize,
+        drawSize
+    };
+    DrawTexturePro(sheet, src, dest, { 0, 0 }, 0.0f, WHITE);
 }

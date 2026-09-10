@@ -33,6 +33,8 @@ void AbilityDatabase::LoadFromFile(const std::string& path) {
         a.target      = ParseTarget(entry.value("target", "enemy"));
         a.cost        = entry.value("cost", 0);
         a.cooldown    = entry.value("cooldown", 0);
+        a.animation   = entry.value("animation", "");
+        a.impact      = entry.value("impact", "");
 
         if (entry.contains("effects")) {
             for (const auto& eff : entry["effects"]) {

@@ -25,6 +25,8 @@ struct Ability {
     TargetType  target = TargetType::Enemy;
     int         cost = 0;      // energy spent to use it
     int         cooldown = 0;  // turns before it can be used again
+    std::string animation;     // player animation clip to play when used ("" = none)
+    std::string impact;        // enemy hurt reaction: "slash", "fire" ("" = none)
     std::vector<Effect> effects;
 };
 

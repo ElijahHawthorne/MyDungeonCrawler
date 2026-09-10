@@ -7,6 +7,8 @@
             "target": "enemy",
             "cost": 0,
             "cooldown": 0,
+            "animation": "slash",
+            "impact": "slash",
             "effects": [
                 { "type": "damage", "amount": 15 }
             ]
@@ -18,6 +20,8 @@
             "target": "all_enemies",
             "cost": 3,
             "cooldown": 2,
+            "animation": "flame",
+            "impact": "fire",
             "effects": [
                 { "type": "damage", "amount": 10 }
             ]
@@ -29,6 +33,7 @@
             "target": "self",
             "cost": 2,
             "cooldown": 3,
+            "animation": "mend",
             "effects": [
                 { "type": "heal", "amount": 20 }
             ]

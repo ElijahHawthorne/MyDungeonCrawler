@@ -14,6 +14,8 @@ int main() {
     SetTargetFPS(60);
 
     Texture2D tileset = LoadTexture("assets/tilesets/tilemap.png");
+    Texture2D playerSheet = LoadTexture("assets/sprites/player.png"); // id 0 if missing -> rect fallback
+    Texture2D enemySheet  = LoadTexture("assets/sprites/enemy.png");
     LoadMapFromFile("assets/maps/field.json");
 
     AbilityDatabase abilities;
@@ -31,7 +33,8 @@ int main() {
     float startX = (float)(playerStartCol * tileScreenSize);
     float startY = (float)(playerStartRow * tileScreenSize);
 
-    Player player = { startX, startY, 200.0f, (float)(TILE_SIZE * DRAW_SCALE / 2), 30, 30, 5, 5, 15, {} };
+    Player player = { startX, startY, 200.0f, (float)(TILE_SIZE * DRAW_SCALE / 2),
+                      30, 30, 5, 5, 15, {}, PANIM_IDLE, 0, 0.0f };
     player.loadout = BuildLoadout(abilities, { "slash", "fireball", "mend" });
 
     std::vector<Enemy> mapEnemies = {
@@ -80,6 +83,10 @@ int main() {
             UpdateCombat(player, activeCombatEnemies, state);
         }
 
+        UpdatePlayerAnim(player, GetFrameTime());
+        for (Enemy& e : mapEnemies) UpdateEnemyAnim(e, GetFrameTime());
+        UpdateEnemyAnim(hiddenPartner, GetFrameTime());
+
         // --- Music/sound transitions ---
         if (state != previousState) {
             if (state == COMBAT) {
@@ -122,14 +129,14 @@ int main() {
         ClearBackground(RAYWHITE);
 
         DrawMap(tileset);
-        DrawPlayer(player);
+        DrawPlayer(player, playerSheet);
 
         for (const Enemy& e : mapEnemies) {
-            if (e.alive) DrawEnemy(e);
+            if (e.alive) DrawEnemy(e, enemySheet);
         }
 
         if (state == COMBAT) {
-            DrawCombat(player, activeCombatEnemies);
+            DrawCombat(player, activeCombatEnemies, playerSheet, enemySheet);
         } else if (state == GAME_OVER) {
             DrawText("GAME OVER", 300, 200, 30, RED);
         }
@@ -141,6 +148,8 @@ int main() {
     UnloadMusicStream(exploreMusic);
     UnloadMusicStream(combatMusic);
     UnloadTexture(tileset);
+    UnloadTexture(playerSheet);
+    UnloadTexture(enemySheet);
     CloseAudioDevice();
     CloseWindow();
     return 0;

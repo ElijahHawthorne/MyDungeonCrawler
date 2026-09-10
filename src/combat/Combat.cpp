@@ -1,9 +1,23 @@
 #include "Combat.h"
 
-static float enemyTurnTimer = 0.0f;
-static bool waitingForEnemyTurn = false;
 static int targetIndex = 0;
 static int pendingAbility = 0; // index into player.loadout.slots
+
+// A combat round runs as a sequence of timed phases. Input is only accepted in
+// PHASE_PLAYER_INPUT; every other phase is an animation playing out.
+enum CombatPhase {
+    PHASE_PLAYER_INPUT,  // waiting for the player to pick and fire an ability
+    PHASE_PLAYER_ANIM,   // player's ability clip playing; effect held until it ends
+    PHASE_ENEMY_REACT,   // struck enemies playing their hurt clip
+    PHASE_ENEMY_ANIM,    // living enemies playing their attack clip
+    PHASE_ENEMY_HIT      // player playing the hurt clip after the enemy turn
+};
+static CombatPhase phase = PHASE_PLAYER_INPUT;
+static float phaseTimer = 0.0f;
+static int actingSlot = -1;
+
+// Pause after a hit lands, so the enemy hurt clip is visible before they retaliate.
+static const float ENEMY_REACT_TIME = 0.35f;
 
 bool CheckCollision(const Player& player, const Enemy& enemy) {
     if (!enemy.alive) return false;
@@ -15,10 +29,28 @@ bool CheckCollision(const Player& player, const Enemy& enemy) {
 }
 
 void ResetCombat() {
-    waitingForEnemyTurn = false;
-    enemyTurnTimer = 0.0f;
     targetIndex = 0;
     pendingAbility = 0;
+    phase = PHASE_PLAYER_INPUT;
+    phaseTimer = 0.0f;
+    actingSlot = -1;
+}
+
+// Maps an ability's "animation" string to a player clip. Returns false when the
+// ability has no animation, in which case its effect resolves immediately.
+static bool AbilityAnim(const std::string& name, PlayerAnim& out) {
+    if (name == "flame") { out = PANIM_FLAME; return true; }
+    if (name == "slash") { out = PANIM_SLASH; return true; }
+    if (name == "mend")  { out = PANIM_MEND;  return true; }
+    if (name == "hurt")  { out = PANIM_HURT;  return true; }
+    return false;
+}
+
+// Maps an ability's "impact" string to the enemy hurt clip it inflicts.
+static bool EnemyHurtAnim(const std::string& impact, EnemyAnim& out) {
+    if (impact == "slash") { out = EANIM_HURT_SLASH; return true; }
+    if (impact == "fire")  { out = EANIM_HURT_FIRE;  return true; }
+    return false;
 }
 
 // Runs an ability's effect list. This is the only place effect behavior lives,
@@ -89,30 +121,108 @@ void EnsureValidTarget(std::vector<Enemy*>& enemies) {
     }
 }
 
+// Applies the selected ability's effect, spends its cost, starts its cooldown,
+// triggers the enemy hurt reaction, and clears any enemies it killed. Sets
+// state to EXPLORING if that was the last enemy.
+static void ResolvePlayerAbility(Player& player, std::vector<Enemy*>& enemies,
+                                 AbilitySlot& slot, GameState& state) {
+    const Ability& a = *slot.ability;
+
+    ApplyAbility(a, player, enemies, targetIndex);
+    player.energy -= a.cost;
+    slot.cooldownRemaining = a.cooldown;
+
+    // Enemies that survived the hit play their hurt clip.
+    EnemyAnim hurt;
+    if (EnemyHurtAnim(a.impact, hurt)) {
+        if (a.target == TargetType::AllEnemies) {
+            for (Enemy* e : enemies) {
+                if (e->alive && e->health > 0) SetEnemyAnim(*e, hurt);
+            }
+        } else if (targetIndex >= 0 && targetIndex < (int)enemies.size() &&
+                   enemies[targetIndex]->alive && enemies[targetIndex]->health > 0) {
+            SetEnemyAnim(*enemies[targetIndex], hurt);
+        }
+    }
+
+    for (Enemy* e : enemies) {
+        if (e->alive && e->health <= 0) {
+            e->health = 0;
+            e->alive = false;
+        }
+    }
+
+    if (!AnyEnemyAlive(enemies)) {
+        state = EXPLORING;
+    }
+}
+
+// Enemy turn: living enemies hit the player. Runs after their attack clip.
+static void ResolveEnemyTurn(Player& player, std::vector<Enemy*>& enemies,
+                             Loadout& loadout, GameState& state) {
+    int healthBefore = player.health;
+    for (Enemy* e : enemies) {
+        if (e->alive) player.health -= e->attackPower;
+    }
+
+    // End of round: tick cooldowns and regenerate a point of energy.
+    for (AbilitySlot& s : loadout.slots) {
+        if (s.cooldownRemaining > 0) s.cooldownRemaining--;
+    }
+    if (player.energy < player.maxEnergy) player.energy++;
+
+    if (player.health <= 0) {
+        player.health = 0;
+        state = GAME_OVER;
+    } else if (player.health < healthBefore) {
+        SetPlayerAnim(player, PANIM_HURT);
+    }
+}
+
 void UpdateCombat(Player& player, std::vector<Enemy*>& enemies, GameState& state) {
     EnsureValidTarget(enemies);
     Loadout& loadout = player.loadout;
+    float dt = GetFrameTime();
 
-    if (waitingForEnemyTurn) {
-        enemyTurnTimer -= GetFrameTime();
-        if (enemyTurnTimer <= 0) {
-            for (Enemy* e : enemies) {
-                if (e->alive) player.health -= e->attackPower;
+    switch (phase) {
+        case PHASE_PLAYER_ANIM:
+            phaseTimer -= dt;
+            if (phaseTimer <= 0.0f) {
+                ResolvePlayerAbility(player, enemies, loadout.slots[actingSlot], state);
+                if (state != COMBAT) { phase = PHASE_PLAYER_INPUT; return; }
+                phase = PHASE_ENEMY_REACT;
+                phaseTimer = ENEMY_REACT_TIME;
             }
-            waitingForEnemyTurn = false;
+            return;
 
-            // End of round: tick cooldowns and regenerate a point of energy.
-            for (AbilitySlot& s : loadout.slots) {
-                if (s.cooldownRemaining > 0) s.cooldownRemaining--;
+        case PHASE_ENEMY_REACT:
+            phaseTimer -= dt;
+            if (phaseTimer <= 0.0f) {
+                for (Enemy* e : enemies) {
+                    if (e->alive) SetEnemyAnim(*e, EANIM_ATTACK);
+                }
+                phase = PHASE_ENEMY_ANIM;
+                phaseTimer = EnemyAnimDuration(EANIM_ATTACK);
             }
-            if (player.energy < player.maxEnergy) player.energy++;
+            return;
 
-            if (player.health <= 0) {
-                player.health = 0;
-                state = GAME_OVER;
+        case PHASE_ENEMY_ANIM:
+            phaseTimer -= dt;
+            if (phaseTimer <= 0.0f) {
+                ResolveEnemyTurn(player, enemies, loadout, state);
+                if (state == GAME_OVER) { phase = PHASE_PLAYER_INPUT; return; }
+                phase = PHASE_ENEMY_HIT;
+                phaseTimer = PlayerAnimDuration(PANIM_HURT);
             }
-        }
-        return;
+            return;
+
+        case PHASE_ENEMY_HIT:
+            phaseTimer -= dt;
+            if (phaseTimer <= 0.0f) phase = PHASE_PLAYER_INPUT;
+            return;
+
+        case PHASE_PLAYER_INPUT:
+            break;
     }
 
     int slotCount = (int)loadout.slots.size();
@@ -152,37 +262,38 @@ void UpdateCombat(Player& player, std::vector<Enemy*>& enemies, GameState& state
     if (IsKeyPressed(KEY_SPACE) && !loadout.slots.empty()) {
         AbilitySlot& slot = loadout.slots[pendingAbility];
         if (SlotUsable(slot, player)) {
-            const Ability& a = *slot.ability;
-
-            ApplyAbility(a, player, enemies, targetIndex);
-            player.energy -= a.cost;
-            slot.cooldownRemaining = a.cooldown;
-
-            for (Enemy* e : enemies) {
-                if (e->alive && e->health <= 0) {
-                    e->health = 0;
-                    e->alive = false;
+            actingSlot = pendingAbility;
+            PlayerAnim anim;
+            if (AbilityAnim(slot.ability->animation, anim)) {
+                // Play the animation first; the effect resolves when it ends.
+                SetPlayerAnim(player, anim);
+                phase = PHASE_PLAYER_ANIM;
+                phaseTimer = PlayerAnimDuration(anim);
+            } else {
+                ResolvePlayerAbility(player, enemies, slot, state);
+                if (state == COMBAT) {
+                    phase = PHASE_ENEMY_REACT;
+                    phaseTimer = ENEMY_REACT_TIME;
                 }
             }
-
-            if (!AnyEnemyAlive(enemies)) {
-                state = EXPLORING;
-                return;
-            }
-
-            waitingForEnemyTurn = true;
-            enemyTurnTimer = 0.6f;
         }
     }
 }
 
-void DrawCombat(const Player& player, const std::vector<Enemy*>& enemies) {
+void DrawCombat(const Player& player, const std::vector<Enemy*>& enemies,
+                Texture2D playerSheet, Texture2D enemySheet) {
     DrawRectangle(0, 0, 800, 450, Fade(BLACK, 0.7f));
     DrawText("Enemies appeared!", 260, 40, 20, WHITE);
 
     DrawText(TextFormat("Player HP: %d / %d", player.health, player.maxHealth), 100, 95, 20, WHITE);
     DrawText(TextFormat("Energy: %d / %d", player.energy, player.maxEnergy), 100, 118, 18, SKYBLUE);
-    DrawRectangle(80, 150, 150, 150, RED);
+
+    Rectangle playerBox = { 80, 150, 150, 150 };
+    if (playerSheet.id != 0) {
+        DrawTexturePro(playerSheet, PlayerFrameRect(player), playerBox, { 0, 0 }, 0.0f, WHITE);
+    } else {
+        DrawRectangleRec(playerBox, RED);
+    }
 
     std::vector<Rectangle> rects = GetEnemyRects(enemies);
 
@@ -191,7 +302,12 @@ void DrawCombat(const Player& player, const std::vector<Enemy*>& enemies) {
 
         DrawText(TextFormat("Enemy HP: %d / %d", enemies[i]->health, enemies[i]->maxHealth),
                   (int)rects[i].x, 100, 18, WHITE);
-        DrawRectangleRec(rects[i], PURPLE);
+
+        if (enemySheet.id != 0) {
+            DrawTexturePro(enemySheet, EnemyFrameRect(*enemies[i]), rects[i], { 0, 0 }, 0.0f, WHITE);
+        } else {
+            DrawRectangleRec(rects[i], PURPLE);
+        }
 
         if (i == targetIndex) {
             DrawRectangleLinesEx(rects[i], 4, YELLOW); // highlight the targeted enemy
